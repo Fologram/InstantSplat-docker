@@ -1,6 +1,8 @@
 cloudflared tunnel --no-autoupdate --url http://localhost:5000 > /tmp/cloudflared.log 2>&1 &
 echo "Cloudflared started with PID $!" >> /tmp/startup.log
 
+mkdir -p /tmp
+
 # Wait for the URL to appear in the log file
 while ! grep -q "https://" /tmp/cloudflared.log; do
   sleep 1
