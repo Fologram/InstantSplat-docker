@@ -15,4 +15,4 @@ echo "https://$TUNNEL_URL"
 echo "========================================"
 
 # Start ComfyUI with suppressed output
-python server.py --listen 0.0.0.0 > /tmp/server.log 2>&1 &
+python server.py --listen 0.0.0.0 --port 5000 > /tmp/server.log 2>&1 &
