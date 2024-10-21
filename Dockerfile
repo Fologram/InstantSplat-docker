@@ -1,4 +1,6 @@
 FROM nerfstudio/nerfstudio
+# Create the /workspace directory
+RUN mkdir -p /workspace
 WORKDIR /workspace/
 USER root
 
