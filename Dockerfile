@@ -31,6 +31,9 @@ WORKDIR /workspace/InstantSplat
 # Install dependencies using pixi
 RUN pixi install 
 
+# Download model checkpoints
+RUN pixi run post-install
+
 # Make start.sh executable
 RUN chmod +x start.sh
 
