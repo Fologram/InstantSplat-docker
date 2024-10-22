@@ -1,15 +1,14 @@
 cloudflared tunnel --no-autoupdate --url http://localhost:5000 > /tmp/cloudflared.log 2>&1 &
 echo "Cloudflared started with PID $!" >> /tmp/startup.log
-
 mkdir -p /tmp
 
 # Wait for the URL to appear in the log file
-while ! grep -q "https://" /tmp/cloudflared.log; do
+while ! grep -q "+--*+" /tmp/cloudflared.log; do
   sleep 1
 done
 
-# Extract and display the URL
-TUNNEL_URL=$(grep "https://" /tmp/cloudflared.log | sed -n 's/.*https:\/\/\(.*\)"/\1/p')
+# Extract and display the URL - modified to handle the specific log format
+TUNNEL_URL=$(grep -A 2 "+--*+" /tmp/cloudflared.log | grep "https://" | sed -E 's/.*https:\/\/([^[:space:]]*).*/\1/')
 echo "======== CLOUDFLARED TUNNEL URL ========"
 echo "https://$TUNNEL_URL"
 echo "========================================"
