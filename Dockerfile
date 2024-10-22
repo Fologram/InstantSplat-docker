@@ -33,6 +33,3 @@ RUN chmod +x start.sh
 
 # Expose ports
 EXPOSE 5000 7860
-
-# Set the entrypoint to start.sh in the InstantSplat folder
-ENTRYPOINT ["./start.sh"]
