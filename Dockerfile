@@ -15,6 +15,9 @@ RUN wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/c
 # Install rembg
 RUN pip install "rembg[gpu,cli]"
 
+# Install flast
+RUN pip install flask
+
 # Install pixi
 RUN curl -fsSL https://pixi.sh/install.sh | bash
 
