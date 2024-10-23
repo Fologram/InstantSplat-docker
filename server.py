@@ -9,6 +9,10 @@ from urllib.parse import urlparse
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 
+# Get environment variables with fallback values
+PUBLIC_IPADDR = os.getenv('PUBLIC_IPADDR', 'localhost')
+VAST_TCP_PORT_8080 = os.getenv('VAST_TCP_PORT_8080', '8080')
+
 app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -142,7 +146,8 @@ def run_training(scene_path, output_path, n_views):
 
 def get_ply_url(video_name, timestamp):
     ply_path = f'InstantSplat/output/{video_name}_{timestamp}/point_cloud/iteration_200/point_cloud.ply'
-    return f'/files/{ply_path}'
+    base_url = f'https://{PUBLIC_IPADDR}:{VAST_TCP_PORT_8080}'
+    return f'{base_url}/files/workspace/{ply_path}'
 
 def run_flask_server():
     app.run(debug=False, host='0.0.0.0', port=5000) #Specify host for cloudflared
