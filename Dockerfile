@@ -46,6 +46,9 @@ RUN mkdir -p ~/miniconda3 && \
     rm ~/miniconda3/miniconda.sh && \
     source ~/miniconda3/bin/activate && \
     conda init --all
+    
+# Add conda to PATH
+ENV PATH="/root/miniconda/bin:${PATH}"
 
 # Install spann3r
 RUN git clone https://github.com/HengyiWang/spann3r.git && \
