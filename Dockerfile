@@ -23,16 +23,13 @@ SHELL ["/bin/bash", "--login", "-c"]
 RUN git clone https://github.com/HengyiWang/spann3r.git && \
     cd spann3r && \
     conda create -y -n spann3r python=3.9 cmake=3.14.0 && \
-    conda init && \
-    conda activate spann3r && \
-    conda install -y pytorch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 pytorch-cuda=11.8 -c pytorch -c nvidia && \
+    conda install -n spann3r -y pytorch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 pytorch-cuda=11.8 -c pytorch -c nvidia && \
     pip install -r requirements.txt && \
     pip install Open3d
 
 # Compile curope
 RUN cd spann3r/croco/models/curope/ && \
-    conda activate spann3r && \
-    python setup.py build_ext --inplace
+    conda run -n spann3r python setup.py build_ext --inplace
     
 # Download dust3r checkpoint
 RUN cd spann3r && \
@@ -57,15 +54,12 @@ RUN pip install gdown && \
 # Install 2DGS
 RUN git clone https://github.com/hbb1/2d-gaussian-splatting.git --recursive && \
     cd 2d-gaussian-splatting && \
-    conda env create --file environment.yml && \
-    conda init && \
-    conda activate surfel_splatting
+    conda env create --file environment.yml
 
 # Install Colmap
 RUN cd 2d-gaussian-splatting && \
-    conda activate surfel_splatting && \
     apt-get update && apt-get install ffmpeg libsm6 libxext6  -y && \
-    conda install -y -c conda-forge colmap 
+    conda install -n surfel_splatting -y -c conda-forge colmap 
 
 # Set permissions on utility script
 RUN chmod +x generate_colmap_dataset.sh
