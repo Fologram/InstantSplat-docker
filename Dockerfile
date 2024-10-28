@@ -85,15 +85,14 @@ RUN pip install gdown && \
 # Install 2DGS
 RUN git clone https://github.com/hbb1/2d-gaussian-splatting.git --recursive
 
-# Needs to run in start script due to GPU requirement
-# conda env create --file /workspace/InstantSplat/2d-gaussian-splatting/environment.yml
-
 # Install Colmap
 RUN cd 2d-gaussian-splatting && \
-    apt-get update && apt-get install ffmpeg libsm6 libxext6 -y
+    apt-get update && apt-get install ffmpeg libsm6 libxext6 -y && \
+    conda create -n surfel_splatting -y -c conda-forge colmap 
 
+# Initialize 2DGS
 # Needs to run in start script due to GPU requirement
-# conda install -n surfel_splatting -y -c conda-forge colmap 
+# conda env create --file /workspace/InstantSplat/2d-gaussian-splatting/environment.yml
 
 # Set permissions on utility script
 RUN chmod +x generate_colmap_dataset.sh
