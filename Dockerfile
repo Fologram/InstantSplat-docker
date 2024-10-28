@@ -4,6 +4,8 @@ RUN mkdir -p /workspace
 WORKDIR /workspace/
 USER root
 
+ENV CUDA_HOME="/usr/local/cuda-11.8"
+
 ### spann3r ###
 
 # Install conda
