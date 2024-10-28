@@ -38,7 +38,6 @@ RUN pixi run post-install
 
 ### end instant splat ###
 
-
 ### spann3r ###
 
 # Install conda
@@ -72,13 +71,12 @@ RUN cd spann3r && \
 
 # Download example content and spann3r checkpoint
 RUN pip install gdown && \
-    cd spann3r && \
     sudo apt-get install unzip && \
+    cd spann3r && \
+    gdown --id 1cpWTbcds_2zIdR57T0Zs0FvahvNx-EqE
     unzip examples.zip && \
     cd checkpoints && \
-    gdown --id 1lFpfh1Vo47XpqVacT51xYldYcCYEZpYA && \
-    cd checkpoints && \
-    gdown --id 1cpWTbcds_2zIdR57T0Zs0FvahvNx-EqE
+    gdown --id 1lFpfh1Vo47XpqVacT51xYldYcCYEZpYA
     
 ### end spann3r ###
 
