@@ -67,6 +67,16 @@ RUN cd spann3r && \
     cd checkpoints && \
     wget https://download.europe.naverlabs.com/ComputerVision/DUSt3R/DUSt3R_ViTLarge_BaseDecoder_512_dpt.pth
 
+# Download example content and spann3r checkpoint
+RUN pip install gdown && \
+    cd spann3r && \
+    sudo apt-get install unzip && \
+    unzip examples.zip && \
+    cd checkpoints && \
+    gdown --id 1lFpfh1Vo47XpqVacT51xYldYcCYEZpYA && \
+    cd checkpoints && \
+    gdown --id 1cpWTbcds_2zIdR57T0Zs0FvahvNx-EqE
+    
 ### end spann3r ###
 
 # Make start.sh executable
