@@ -61,8 +61,8 @@ RUN git clone https://github.com/HengyiWang/spann3r.git && \
     conda install -n spann3r -c conda-forge open3d
 
 # Compile curope
-RUN cd spann3r/croco/models/curope/ && \
-    conda run -n spann3r python setup.py build_ext --inplace
+# Needs to happen in start script (requires GPU)
+# conda run -n spann3r python spann3r/croco/models/curope/setup.py build_ext --inplace
     
 # Download dust3r checkpoint
 RUN cd spann3r && \
