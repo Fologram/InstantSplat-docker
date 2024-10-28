@@ -73,7 +73,7 @@ RUN cd spann3r && \
 RUN pip install gdown && \
     sudo apt-get install unzip && \
     cd spann3r && \
-    gdown --id 1cpWTbcds_2zIdR57T0Zs0FvahvNx-EqE
+    gdown --id 1cpWTbcds_2zIdR57T0Zs0FvahvNx-EqE && \
     unzip examples.zip && \
     cd checkpoints && \
     gdown --id 1lFpfh1Vo47XpqVacT51xYldYcCYEZpYA
