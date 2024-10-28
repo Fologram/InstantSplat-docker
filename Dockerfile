@@ -4,39 +4,6 @@ RUN mkdir -p /workspace
 WORKDIR /workspace/
 USER root
 
-
-### Instant Splat and Utils ###
-
-# Install git and other required packages
-RUN apt-get update && apt-get install -y git ffmpeg libsm6 libxext6 lsof
-
-# Install cloudflare
-RUN wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb && \
-    dpkg -i cloudflared-linux-amd64.deb && \
-    rm cloudflared-linux-amd64.deb
-
-# Install rembg
-RUN pip install "rembg[gpu,cli]"
-
-# Install flask
-RUN pip install flask
-
-# Install pixi
-RUN curl -fsSL https://pixi.sh/install.sh | bash
-
-# Add pixi to PATH
-ENV PATH="/root/.pixi/bin:${PATH}"
-
-# Clone the repository and run the application
-COPY . /workspace/InstantSplat
-WORKDIR /workspace/InstantSplat
-
-# Install dependencies using pixi
-RUN pixi install 
-
-# Download model checkpoints
-RUN pixi run post-install
-
 ### spann3r ###
 
 # Install conda
@@ -48,7 +15,7 @@ RUN mkdir -p ~/miniconda3 && \
     conda init --all
     
 # Add conda to PATH
-ENV PATH="/root/miniconda/bin:${PATH}"
+ENV PATH="/root/miniconda3/bin:${PATH}"
 
 # Install spann3r
 RUN git clone https://github.com/HengyiWang/spann3r.git && \
@@ -81,6 +48,60 @@ RUN pip install gdown && \
     gdown --id 1cpWTbcds_2zIdR57T0Zs0FvahvNx-EqE
     
 ### end spann3r ###
+
+### 2DGS ###
+
+# Install 2DGS
+RUN git clone https://github.com/hbb1/2d-gaussian-splatting.git --recursive && \
+    cd 2d-gaussian-splatting && \
+    conda env create --file environment.yml && \
+    conda init && \
+    conda activate surfel_splatting
+
+# Install Colmap
+RUN cd 2d-gaussian-splatting && \
+    conda activate surfel_splatting && \
+    apt-get update && apt-get install ffmpeg libsm6 libxext6  -y && \
+    conda install -y -c conda-forge colmap 
+
+# Set permissions on utility script
+RUN chmod +x generate_colmap_dataset.sh
+
+### end 2DGS ###
+
+### Instant Splat ###
+
+# Install git and other required packages
+RUN apt-get update && apt-get install -y git ffmpeg libsm6 libxext6 lsof
+
+# Install cloudflare
+RUN wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb && \
+    dpkg -i cloudflared-linux-amd64.deb && \
+    rm cloudflared-linux-amd64.deb
+
+# Install rembg
+RUN pip install "rembg[gpu,cli]"
+
+# Install flask
+RUN pip install flask
+
+# Install pixi
+RUN curl -fsSL https://pixi.sh/install.sh | bash
+
+# Add pixi to PATH
+ENV PATH="/root/.pixi/bin:${PATH}"
+
+# Clone the repository and run the application
+COPY . /workspace/InstantSplat
+WORKDIR /workspace/InstantSplat
+
+# Install dependencies using pixi
+RUN pixi install 
+
+# Download model checkpoints
+RUN pixi run post-install
+
+### end instant splat ###
 
 # Make start.sh executable
 RUN chmod +x start.sh
