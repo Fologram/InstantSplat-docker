@@ -16,11 +16,13 @@ echo "https://$TUNNEL_URL"
 echo "========================================"
 
 echo "Compiling curope for spann3r"
-conda run -n spann3r python /workspace/InstantSplat/spann3r/croco/models/curope/setup.py build_ext --inplace
+cd /workspace/InstantSplat/spann3r/croco/models/curope
+conda run -n spann3r python setup.py build_ext --inplace
 
 echo "Configuring 2DGS"
 conda env update -n surfel_splatting --file /workspace/InstantSplat/2d-gaussian-splatting/environment.yml
 
 echo "Starting server..."
-python server.py --listen 0.0.0.0 --port 5000 > /tmp/server.log 2>&1 &
+cd /workspace/InstantSplat
+pixi run python server.py --listen 0.0.0.0 --port 5000 > /tmp/server.log 2>&1 &
 ```
