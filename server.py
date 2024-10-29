@@ -48,20 +48,36 @@ def get_tasks():
 @app.route('/generate', methods=['POST'])
 def generate():
     try:
-        video_url = request.json['video_url']
-        model = request.json['model']  # New model parameter
+         # Get request JSON with defaults
+        request_data = request.get_json()
+        if not request_data:
+            return jsonify({'error': 'No JSON data provided'}), 400
+
+        # Extract parameters with defaults
+        video_url = request_data.get('video_url')
+        if not video_url:
+            return jsonify({'error': 'video_url is required'}), 400
+            
+        # Default model is instantsplat if not specified
+        model = request_data.get('model', 'instantsplat')
         if model not in ['instantsplat', 'spann3r', '2dgs']:
             return jsonify({'error': 'Invalid model specified'}), 400
+            
+        # Default parameters for video processing
+        kf_every = request_data.get('kf_every', 5)  # Keyframe every 5 frames
+        fps = request_data.get('fps', 1)  # Default 1 fps
+        conf_thresh = request_data.get('conf_thresh', 1e-3)  # Default confidence threshold
+        iterations = request_data.get('iterations', 200)  # Default training iterations
         
         task_id = str(uuid.uuid4())
         logger.debug(f"Creating task: {task_id}")
         tasks[task_id] = {
             'status': 'processing',
             'result': None,
-            'created_at': time.time()  # Add timestamp when creating the task
+            'created_at': time.time()
         }
 
-        def process_video_task(task_id, video_url, model, kf_every, fps, conf_thresh, iter):
+        def process_video_task(task_id, video_url, model, kf_every, fps, conf_thresh, iterations):
             try:
                 video_name = Path(urlparse(video_url).path).stem
                 timestamp = int(time.time())
@@ -78,7 +94,7 @@ def generate():
                     logger.info("Model: InstantSplat")
                     n_frames = extract_frames(video_path, input_folder, f'{input_folder}/images', fps)
                     run_camera_inference(input_folder, n_frames)
-                    run_training(input_folder, output_folder, n_frames, iter)
+                    run_training(input_folder, output_folder, n_frames, iterations)
                     ply_url = get_ply_url(video_name, timestamp)
                 
                 elif model == 'spann3r':
@@ -90,8 +106,8 @@ def generate():
                 elif model == '2dgs':
                     logger.info("Model: 2DGS")
                     n_frames = extract_frames(video_path, input_folder, f'{input_folder}/images', fps)
-                    run_colmap_and_training(output_folder, input_folder, iter)  # Run colmap and training for 2DGS
-                    ply_url = get_2dgs_ply_url(output_folder)  # Return URL for 2DGS's output
+                    run_colmap_and_training(input_folder, iterations)  # Run colmap and training for 2DGS
+                    ply_url = get_2dgs_ply_url(input_folder)  # Return URL for 2DGS's output
 
                 tasks[task_id]['status'] = 'complete'
                 tasks[task_id]['result'] = ply_url
@@ -100,7 +116,7 @@ def generate():
                 tasks[task_id]['status'] = 'failed'
                 tasks[task_id]['result'] = str(e)
 
-        executor.submit(process_video_task, task_id, video_url, model, kf_every=5, fps=1, conf_thresh=1e-3, iter=200)
+        executor.submit(process_video_task, task_id, video_url, model, kf_every, fps, conf_thresh, iterations)
         return jsonify({'task_id': task_id})
 
     except Exception as e:
@@ -141,9 +157,9 @@ def run_camera_inference(img_path, n_views):
         logger.error(f"Error in run_camera_inference: {e.output}")
         raise
 
-def run_training(scene_path, output_path, n_views, iter):
+def run_training(scene_path, output_path, n_views, iterations):
     try:
-        cmd = f'pixi run python tools/train_joint.py -s {scene_path} -m {output_path} --n_views {n_views} --scene {Path(scene_path).name} --iter {iter} --optim_pose'
+        cmd = f'pixi run python tools/train_joint.py -s {scene_path} -m {output_path} --n_views {n_views} --scene {Path(scene_path).name} --iter {iterations} --optim_pose'
         logger.debug(f"Running command: {cmd}")
         result = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
         logger.debug(f"Training output: {result.stdout}")
@@ -186,16 +202,16 @@ def get_ply_url(video_name, timestamp):
     base_url = f'https://{PUBLIC_IPADDR}:{VAST_TCP_PORT_8080}'
     return f'{base_url}/files/workspace/{ply_path}'
 
-def run_colmap_and_training(output_folder, image_folder, iter):
+def run_colmap_and_training(image_folder, iterations):
     try:
         # Run COLMAP to generate the dataset
-        colmap_cmd = f'colmap automatic_reconstructor --workspace_path "{output_folder}" --image_path "{image_folder}" --camera_model "SIMPLE_PINHOLE" --dense 0 --data_type "video" --quality "medium"'
+        colmap_cmd = f'colmap automatic_reconstructor --workspace_path "{image_folder}" --image_path "{image_folder}/images" --camera_model "SIMPLE_PINHOLE" --dense 0 --data_type "video" --quality "medium"'
         logger.debug(f"Running COLMAP command: {colmap_cmd}")
         result = subprocess.run(colmap_cmd, shell=True, check=True, capture_output=True, text=True)
         logger.debug(f"COLMAP output: {result.stdout}")
 
         # Run training script
-        train_cmd = f'python 2d-gaussian-splatting/train.py -s ../{output_folder} --iterations {iter}'
+        train_cmd = f'conda run -n surfel_splatting python 2d-gaussian-splatting/train.py -s {image_folder} --iterations {iterations}'
         logger.debug(f"Running training command: {train_cmd}")
         result = subprocess.run(train_cmd, shell=True, check=True, capture_output=True, text=True)
         logger.debug(f"Training output: {result.stdout}")
@@ -205,7 +221,7 @@ def run_colmap_and_training(output_folder, image_folder, iter):
 
 def get_2dgs_ply_url(output_folder):
     # Define the logic to get the PLY file URL for 2DGS
-    ply_path = f'InstantSplat/{output_folder}/colmap_output.ply'
+    ply_path = f'InstantSplat/{output_folder}/sparse/0/points3D.ply'
     base_url = f'https://{PUBLIC_IPADDR}:{VAST_TCP_PORT_8080}'
     return f'{base_url}/files/workspace/{ply_path}'
 
