@@ -39,11 +39,20 @@ def get_task(task_id):
     else:
         return jsonify({'error': 'Task not found'}), 404
 
+@app.route('/get_tasks', methods=['GET'])
+def get_tasks():
+    task_ids = list(tasks.keys())
+    return jsonify(task_ids)
 
-@app.route('/process_video', methods=['POST'])
-def process_video():
+
+@app.route('/generate', methods=['POST'])
+def generate():
     try:
         video_url = request.json['video_url']
+        model = request.json['model']  # New model parameter
+        if model not in ['instantsplat', 'spann3r', '2dgs']:
+            return jsonify({'error': 'Invalid model specified'}), 400
+        
         task_id = str(uuid.uuid4())
         logger.debug(f"Creating task: {task_id}")
         tasks[task_id] = {
@@ -52,7 +61,7 @@ def process_video():
             'created_at': time.time()  # Add timestamp when creating the task
         }
 
-        def process_video_task(task_id, video_url):
+        def process_video_task(task_id, video_url, model):
             try:
                 video_name = Path(urlparse(video_url).path).stem
                 timestamp = int(time.time())
@@ -64,22 +73,26 @@ def process_video():
                 video_path = os.path.join(input_folder, 'input_video.mp4')
                 logger.info(f"Downloading video from {video_url} to {video_path}")
                 download_video_wget(video_url, video_path)
+
+                if model == 'instantsplat':
+                    logger.info("Model: InstantSplat")
+                    n_frames = extract_frames(video_path, input_folder, f'{input_folder}/images', fps=1)
+                    run_camera_inference(input_folder, n_frames)
+                    run_training(input_folder, output_folder, n_frames)
+                    ply_url = get_ply_url(video_name, timestamp)
                 
-                 # Extract frames
-                logger.info("Extracting frames")
-                n_frames = extract_frames(video_path, input_folder, f'{input_folder}/images')
-                logger.info(f"Extracted {n_frames} frames")
-        
-                # Run camera inference
-                logger.info("Running camera inference")
-                run_camera_inference(input_folder, n_frames)
-        
-                # Run training
-                logger.info("Running training")
-                run_training(input_folder, output_folder, n_frames)
-        
-                # Get URL for the generated PLY file
-                ply_url = get_ply_url(video_name, timestamp)
+                elif model == 'spann3r':
+                    logger.info("Model: Spann3r")
+                    n_frames = extract_frames(video_path, input_folder, f'{input_folder}/images', fps=5)
+                    run_spann3r_demo(input_folder, output_folder, n_frames)
+                    ply_url = get_spann3r_ply_url(output_folder)  # Return URL for Spann3r's output
+                
+                elif model == '2dgs':
+                    logger.info("Model: 2DGS")
+                    n_frames = extract_frames(video_path, input_folder, f'{input_folder}/images', fps=24)
+                    run_colmap_and_training(output_folder, input_folder)  # Run colmap and training for 2DGS
+                    ply_url = get_2dgs_ply_url(output_folder)  # Return URL for 2DGS's output
+
                 tasks[task_id]['status'] = 'complete'
                 tasks[task_id]['result'] = ply_url
             except Exception as e:
@@ -87,13 +100,13 @@ def process_video():
                 tasks[task_id]['status'] = 'failed'
                 tasks[task_id]['result'] = str(e)
 
-        executor.submit(process_video_task, task_id, video_url)
+        executor.submit(process_video_task, task_id, video_url, model)
         return jsonify({'task_id': task_id})
 
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 500
-
+        
 def download_video_wget(video_url, download_path):
     try:
         cmd = ['wget', '-O', download_path, video_url]
@@ -104,21 +117,14 @@ def download_video_wget(video_url, download_path):
         logger.error(f"Error downloading video with wget: {e.stderr}")
         raise
         
-def extract_frames(video_path, image_folder, output_folder):
+def extract_frames(video_path, image_folder, output_folder, fps=1):
     try:
         os.makedirs(output_folder, exist_ok=True)
-        # Extract 2 frames per second
-        cmd = f'ffmpeg -i {video_path} -vf fps=1 {output_folder}/frame_%04d.jpg'
+        cmd = f'ffmpeg -i {video_path} -vf fps={fps} {output_folder}/frame_%04d.jpg'
         logger.debug(f"Running command: {cmd}")
         result = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
         logger.debug(f"ffmpeg output: {result.stdout}")
 
-        # Remove background (change above to image_folder dir to use this)
-        #rembgCmd = f'rembg p {image_folder} {output_folder}'
-        #logger.debug(f"Running command: {rembgCmd}")
-        #result = subprocess.run(rembgCmd, shell=True, check=True, capture_output=True, text=True)
-        
-        # Count the number of extracted frames
         frames = list(Path(output_folder).glob('frame_*.jpg'))
         return len(frames)
     except subprocess.CalledProcessError as e:
@@ -145,10 +151,63 @@ def run_training(scene_path, output_path, n_views):
         logger.error(f"Error in run_training: {e.output}")
         raise
 
+def run_spann3r_demo(input_folder, output_folder, n_views):
+    try:
+        # Save the current directory
+        current_dir = os.getcwd()
+
+        # Change to spann3r directory
+        spann3r_dir = os.path.join(current_dir, 'spann3r')
+        os.chdir(spann3r_dir)
+        
+        # Activate spann3r environment and run demo script
+        cmd = f'conda run -n spann3r python demo.py --demo_path ../{input_folder}/images --kf_every 5 --save_path ../{output_folder}'
+        logger.debug(f"Running Spann3r command: {cmd}")
+        
+        result = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
+        logger.debug(f"Spann3r output: {result.stdout}")
+
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Error in Spann3r demo: {e.output}")
+        raise
+
+    finally:
+        # Change back to the original directory
+        os.chdir(current_dir)
+        
+def get_spann3r_ply_url(output_folder):
+    # Define the logic to get the PLY file URL for Spann3r
+    ply_path = f'InstantSplat/{output_folder}/images/images_conf0.001.ply'
+    base_url = f'https://{PUBLIC_IPADDR}:{VAST_TCP_PORT_8080}'
+    return f'{base_url}/files/workspace/{ply_path}'
+    
 def get_ply_url(video_name, timestamp):
     ply_path = f'InstantSplat/output/{video_name}_{timestamp}/point_cloud/iteration_200/point_cloud.ply'
     base_url = f'https://{PUBLIC_IPADDR}:{VAST_TCP_PORT_8080}'
     return f'{base_url}/files/workspace/{ply_path}'
+
+def run_colmap_and_training(output_folder, image_folder):
+    try:
+        # Run COLMAP to generate the dataset
+        colmap_cmd = f'colmap automatic_reconstructor --workspace_path "{output_folder}" --image_path "{image_folder}" --camera_model "SIMPLE_PINHOLE" --dense 0 --data_type "video" --quality "medium"'
+        logger.debug(f"Running COLMAP command: {colmap_cmd}")
+        result = subprocess.run(colmap_cmd, shell=True, check=True, capture_output=True, text=True)
+        logger.debug(f"COLMAP output: {result.stdout}")
+
+        # Run training script
+        train_cmd = f'python train.py -s {output_folder} --iterations 10000'
+        logger.debug(f"Running training command: {train_cmd}")
+        result = subprocess.run(train_cmd, shell=True, check=True, capture_output=True, text=True)
+        logger.debug(f"Training output: {result.stdout}")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Error in COLMAP and training: {e.output}")
+        raise
+
+def get_2dgs_ply_url(output_folder):
+    # Define the logic to get the PLY file URL for 2DGS
+    ply_path = f'{output_folder}/colmap_output.ply'
+    base_url = f'https://{PUBLIC_IPADDR}:{VAST_TCP_PORT_8080}'
+    return f'{base_url}/files/{ply_path}'
 
 def run_flask_server():
     app.run(debug=False, host='0.0.0.0', port=5000) #Specify host for cloudflared
