@@ -61,7 +61,7 @@ def generate():
             'created_at': time.time()  # Add timestamp when creating the task
         }
 
-        def process_video_task(task_id, video_url, model):
+        def process_video_task(task_id, video_url, model, kf_every, fps, conf_thresh, iter):
             try:
                 video_name = Path(urlparse(video_url).path).stem
                 timestamp = int(time.time())
@@ -76,21 +76,21 @@ def generate():
 
                 if model == 'instantsplat':
                     logger.info("Model: InstantSplat")
-                    n_frames = extract_frames(video_path, input_folder, f'{input_folder}/images', fps=1)
+                    n_frames = extract_frames(video_path, input_folder, f'{input_folder}/images', fps)
                     run_camera_inference(input_folder, n_frames)
-                    run_training(input_folder, output_folder, n_frames)
+                    run_training(input_folder, output_folder, n_frames, iter)
                     ply_url = get_ply_url(video_name, timestamp)
                 
                 elif model == 'spann3r':
                     logger.info("Model: Spann3r")
-                    n_frames = extract_frames(video_path, input_folder, f'{input_folder}/images', fps=5)
-                    run_spann3r_demo(input_folder, output_folder, n_frames)
+                    n_frames = extract_frames(video_path, input_folder, f'{input_folder}/images', fps)
+                    run_spann3r_demo(input_folder, output_folder, n_frames, kf_every, conf_thresh)
                     ply_url = get_spann3r_ply_url(output_folder)  # Return URL for Spann3r's output
                 
                 elif model == '2dgs':
                     logger.info("Model: 2DGS")
-                    n_frames = extract_frames(video_path, input_folder, f'{input_folder}/images', fps=24)
-                    run_colmap_and_training(output_folder, input_folder)  # Run colmap and training for 2DGS
+                    n_frames = extract_frames(video_path, input_folder, f'{input_folder}/images', fps)
+                    run_colmap_and_training(output_folder, input_folder, iter)  # Run colmap and training for 2DGS
                     ply_url = get_2dgs_ply_url(output_folder)  # Return URL for 2DGS's output
 
                 tasks[task_id]['status'] = 'complete'
@@ -100,7 +100,7 @@ def generate():
                 tasks[task_id]['status'] = 'failed'
                 tasks[task_id]['result'] = str(e)
 
-        executor.submit(process_video_task, task_id, video_url, model)
+        executor.submit(process_video_task, task_id, video_url, model, kf_every=5, fps=1, conf_thresh=1e-3, iter=200)
         return jsonify({'task_id': task_id})
 
     except Exception as e:
@@ -141,9 +141,9 @@ def run_camera_inference(img_path, n_views):
         logger.error(f"Error in run_camera_inference: {e.output}")
         raise
 
-def run_training(scene_path, output_path, n_views):
+def run_training(scene_path, output_path, n_views, iter):
     try:
-        cmd = f'pixi run python tools/train_joint.py -s {scene_path} -m {output_path} --n_views {n_views} --scene {Path(scene_path).name} --iter 200 --optim_pose'
+        cmd = f'pixi run python tools/train_joint.py -s {scene_path} -m {output_path} --n_views {n_views} --scene {Path(scene_path).name} --iter {iter} --optim_pose'
         logger.debug(f"Running command: {cmd}")
         result = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
         logger.debug(f"Training output: {result.stdout}")
@@ -151,7 +151,7 @@ def run_training(scene_path, output_path, n_views):
         logger.error(f"Error in run_training: {e.output}")
         raise
 
-def run_spann3r_demo(input_folder, output_folder, n_views):
+def run_spann3r_demo(input_folder, output_folder, n_views, kf_every, conf_thresh):
     try:
         # Save the current directory
         current_dir = os.getcwd()
@@ -161,7 +161,7 @@ def run_spann3r_demo(input_folder, output_folder, n_views):
         os.chdir(spann3r_dir)
         
         # Activate spann3r environment and run demo script
-        cmd = f'conda run -n spann3r python demo.py --demo_path ../{input_folder}/images --kf_every 5 --save_path ../{output_folder}'
+        cmd = f'conda run -n spann3r python demo.py --demo_path ../{input_folder}/images --kf_every {kf_every} --save_path ../{output_folder} --conf_thresh {conf_thresh}'
         logger.debug(f"Running Spann3r command: {cmd}")
         
         result = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
@@ -186,7 +186,7 @@ def get_ply_url(video_name, timestamp):
     base_url = f'https://{PUBLIC_IPADDR}:{VAST_TCP_PORT_8080}'
     return f'{base_url}/files/workspace/{ply_path}'
 
-def run_colmap_and_training(output_folder, image_folder):
+def run_colmap_and_training(output_folder, image_folder, iter):
     try:
         # Run COLMAP to generate the dataset
         colmap_cmd = f'colmap automatic_reconstructor --workspace_path "{output_folder}" --image_path "{image_folder}" --camera_model "SIMPLE_PINHOLE" --dense 0 --data_type "video" --quality "medium"'
@@ -195,7 +195,7 @@ def run_colmap_and_training(output_folder, image_folder):
         logger.debug(f"COLMAP output: {result.stdout}")
 
         # Run training script
-        train_cmd = f'python train.py -s {output_folder} --iterations 10000'
+        train_cmd = f'python 2d-gaussian-splatting/train.py -s ../{output_folder} --iterations {iter}'
         logger.debug(f"Running training command: {train_cmd}")
         result = subprocess.run(train_cmd, shell=True, check=True, capture_output=True, text=True)
         logger.debug(f"Training output: {result.stdout}")
@@ -205,9 +205,9 @@ def run_colmap_and_training(output_folder, image_folder):
 
 def get_2dgs_ply_url(output_folder):
     # Define the logic to get the PLY file URL for 2DGS
-    ply_path = f'{output_folder}/colmap_output.ply'
+    ply_path = f'InstantSplat/{output_folder}/colmap_output.ply'
     base_url = f'https://{PUBLIC_IPADDR}:{VAST_TCP_PORT_8080}'
-    return f'{base_url}/files/{ply_path}'
+    return f'{base_url}/files/workspace/{ply_path}'
 
 def run_flask_server():
     app.run(debug=False, host='0.0.0.0', port=5000) #Specify host for cloudflared
