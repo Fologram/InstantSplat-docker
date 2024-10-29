@@ -56,7 +56,7 @@ RUN git clone https://github.com/HengyiWang/spann3r.git && \
     cd spann3r && \
     conda create -y -n spann3r python=3.9 cmake=3.14.0 && \
     conda install -n spann3r -y pytorch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 pytorch-cuda=11.8 -c pytorch -c nvidia && \
-    pip install -r requirements.txt && \
+    conda run -n spann3r pip install -r requirements.txt && \
     conda install -n spann3r -y -c conda-forge open3d
 
 # Compile curope
@@ -92,7 +92,7 @@ RUN cd 2d-gaussian-splatting && \
 
 # Initialize 2DGS
 # Needs to run in start script due to GPU requirement
-# conda env create --file /workspace/InstantSplat/2d-gaussian-splatting/environment.yml
+# conda env update -n surfel_splatting --file /workspace/InstantSplat/2d-gaussian-splatting/environment.yml
 
 # Set permissions on utility script
 RUN chmod +x generate_colmap_dataset.sh
