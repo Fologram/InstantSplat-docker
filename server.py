@@ -45,6 +45,7 @@ def process_video():
     try:
         video_url = request.json['video_url']
         task_id = str(uuid.uuid4())
+        logger.debug(f"Creating task: {task_id}")
         tasks[task_id] = {
             'status': 'processing',
             'result': None,
