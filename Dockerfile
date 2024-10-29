@@ -57,7 +57,7 @@ RUN git clone https://github.com/HengyiWang/spann3r.git && \
     conda create -y -n spann3r python=3.9 cmake=3.14.0 && \
     conda install -n spann3r -y pytorch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 pytorch-cuda=11.8 -c pytorch -c nvidia && \
     pip install -r requirements.txt && \
-    conda install -n spann3r -c conda-forge open3d
+    conda install -n spann3r -y -c conda-forge open3d
 
 # Compile curope
 # Needs to happen in start script (requires GPU)
