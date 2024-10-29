@@ -1,5 +1,13 @@
 Start script (vast):
 ```
+echo "Compiling curope for spann3r"
+cd /workspace/InstantSplat/spann3r/croco/models/curope
+conda run -n spann3r python setup.py build_ext --inplace
+
+echo "Configuring 2DGS"
+conda env update -n surfel_splatting --file /workspace/InstantSplat/2d-gaussian-splatting/environment.yml
+
+echo "Starting cloudflare tunnel"
 cloudflared tunnel --no-autoupdate --url http://localhost:5000 > /tmp/cloudflared.log 2>&1 &
 echo "Cloudflared started with PID $!" >> /tmp/startup.log
 mkdir -p /tmp
@@ -14,13 +22,6 @@ TUNNEL_URL=$(grep -A 2 "+--*+" /tmp/cloudflared.log | grep "https://" | sed -E '
 echo "======== CLOUDFLARED TUNNEL URL ========"
 echo "https://$TUNNEL_URL"
 echo "========================================"
-
-echo "Compiling curope for spann3r"
-cd /workspace/InstantSplat/spann3r/croco/models/curope
-conda run -n spann3r python setup.py build_ext --inplace
-
-echo "Configuring 2DGS"
-conda env update -n surfel_splatting --file /workspace/InstantSplat/2d-gaussian-splatting/environment.yml
 
 echo "Starting server..."
 cd /workspace/InstantSplat
