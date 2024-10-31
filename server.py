@@ -107,7 +107,7 @@ def generate():
                     logger.info("Model: 2DGS")
                     n_frames = extract_frames(video_path, input_folder, f'{input_folder}/images', fps)
                     run_colmap_and_training(input_folder, iterations)  # Run colmap and training for 2DGS
-                    ply_url = get_2dgs_ply_url(f"{input_folder}/point_cloud/iteration_{iterations}/point_cloud.ply")  # Return URL for 2DGS's output
+                    ply_url = get_2dgs_ply_url(input_folder, iterations)  # Return URL for 2DGS's output
 
                 tasks[task_id]['status'] = 'complete'
                 tasks[task_id]['result'] = ply_url
@@ -215,15 +215,22 @@ def run_colmap_and_training(image_folder, iterations):
         logger.debug(f"Running training command: {train_cmd}")
         result = subprocess.run(train_cmd, shell=True, check=True, capture_output=True, text=True)
         logger.debug(f"Training output: {result.stdout}")
+
+        # Generate mesh
+        render_cmd = f'conda run -n surfel_splatting python 2d-gaussian-splatting/render.py -m {image_folder} -s {image_folder}'
+        logger.debug(f"Running render command: {render_cmd}")
+        result = subprocess.run(render_cmd, shell=True, check=True, capture_output=True, text=True)
+        logger.debug(f"Rendered output: {result.stdout}")
     except subprocess.CalledProcessError as e:
         logger.error(f"Error in COLMAP and training: {e.output}")
         raise
 
-def get_2dgs_ply_url(output_folder):
+def get_2dgs_ply_url(output_folder, iterations):
     # Define the logic to get the PLY file URL for 2DGS
-    ply_path = f'InstantSplat/{output_folder}'
+    ply_path = f'InstantSplat/{output_folder}/point_cloud/iteration_{iterations}/point_cloud.ply'
+    mesh_path = f'InstantSplat/{output_folder}/train/ours_{iterations}/fuse_post.ply'
     base_url = f'https://{PUBLIC_IPADDR}:{VAST_TCP_PORT_8080}'
-    return f'{base_url}/files/workspace/{ply_path}'
+    return f'{base_url}/files/workspace/{ply_path} {base_url}/files/workspace/{mesh_path}'
 
 def run_flask_server():
     app.run(debug=False, host='0.0.0.0', port=5000) #Specify host for cloudflared
