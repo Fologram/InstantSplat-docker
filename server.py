@@ -118,6 +118,8 @@ def generate():
                 logger.info(f"Downloading video from {video_url} to {video_path}")
                 download_video_wget(video_url, video_path)
 
+                mesh_url = None
+
                 if model == 'instantsplat':
                     logger.info("Model: InstantSplat")
                     n_frames = extract_frames(video_path, input_folder, f'{input_folder}/images', fps)
