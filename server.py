@@ -125,7 +125,7 @@ def generate():
                     n_frames = extract_frames(video_path, input_folder, f'{input_folder}/images', fps)
                     run_camera_inference(input_folder, n_frames)
                     run_training(input_folder, output_folder, n_frames, iterations)
-                    ply_url = get_ply_url(video_name, timestamp)
+                    ply_url = get_ply_url(video_name, timestamp, iterations)
                 
                 elif model == 'spann3r':
                     logger.info("Model: Spann3r")
@@ -229,8 +229,8 @@ def get_spann3r_ply_url(output_folder):
     base_url = f'http://{PUBLIC_IPADDR}:{VAST_TCP_PORT_5000}'
     return f'{base_url}/files/{ply_path}'
     
-def get_ply_url(video_name, timestamp):
-    ply_path = f'output/{video_name}_{timestamp}/point_cloud/iteration_200/point_cloud.ply'
+def get_ply_url(video_name, timestamp, iterations):
+    ply_path = f'output/{video_name}_{timestamp}/point_cloud/iteration_{iterations}/point_cloud.ply'
     base_url = f'http://{PUBLIC_IPADDR}:{VAST_TCP_PORT_5000}'
     return f'{base_url}/files/{ply_path}'
 
