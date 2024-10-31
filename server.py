@@ -2,7 +2,7 @@ import os
 import time
 import logging
 import uuid
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 import subprocess
 import urllib.request
 from urllib.parse import urlparse
@@ -12,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 # Get environment variables with fallback values
 PUBLIC_IPADDR = os.getenv('PUBLIC_IPADDR', 'localhost')
 VAST_TCP_PORT_8080 = os.getenv('VAST_TCP_PORT_8080', '8080')
+VAST_TCP_PORT_5000 = os.getenv('VAST_TCP_PORT_5000', '5000')
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG)
@@ -24,7 +25,32 @@ executor = ThreadPoolExecutor(max_workers=1)  # Thread pool for tasks
 def test():
     app.logger.info("Test route accessed")
     return jsonify({"status": "ok"}), 200
-    
+
+@app.route('/files/<path:filepath>')
+def serve_file(filepath):
+    """
+    Serve files from the workspace directory.
+    Handles both output files and intermediate processing files.
+    """
+    try:
+        # Determine the base directory (workspace root)
+        workspace_root = os.path.abspath(os.path.join(os.getcwd()))
+        
+        # Ensure the requested path is within the workspace
+        requested_path = os.path.abspath(os.path.join(workspace_root, filepath))
+        if not requested_path.startswith(workspace_root):
+            return jsonify({'error': 'Invalid file path'}), 403
+            
+        # Get the directory and filename
+        directory = os.path.dirname(requested_path)
+        filename = os.path.basename(requested_path)
+        
+        logger.debug(f"Serving file: {requested_path}")
+        return send_from_directory(directory, filename)
+    except Exception as e:
+        logger.error(f"Error serving file {filepath}: {str(e)}")
+        return jsonify({'error': str(e)}), 404
+
 @app.route('/get_task/<task_id>', methods=['GET'])
 def get_task(task_id):
     if task_id in tasks:
@@ -33,6 +59,7 @@ def get_task(task_id):
         response = {
             'status': task['status'],
             'result': task['result'],
+            'result_mesh': task['result_mesh'],
             'elapsed_time': round(elapsed_time, 2)  # Round to 2 decimal places
         }
         return jsonify(response)
@@ -74,6 +101,7 @@ def generate():
         tasks[task_id] = {
             'status': 'processing',
             'result': None,
+            'result_mesh': None,
             'created_at': time.time()
         }
 
@@ -108,9 +136,11 @@ def generate():
                     n_frames = extract_frames(video_path, input_folder, f'{input_folder}/images', fps)
                     run_colmap_and_training(input_folder, iterations)  # Run colmap and training for 2DGS
                     ply_url = get_2dgs_ply_url(input_folder, iterations)  # Return URL for 2DGS's output
+                    mesh_url = get_2dgs_mesh_url(input_folder, iterations)  # Return URL for 2DGS's output
 
                 tasks[task_id]['status'] = 'complete'
                 tasks[task_id]['result'] = ply_url
+                tasks[task_id]['result_mesh'] = mesh_url
             except Exception as e:
                 logger.error(f"Error in task {task_id}: {str(e)}", exc_info=True)
                 tasks[task_id]['status'] = 'failed'
@@ -193,14 +223,14 @@ def run_spann3r_demo(input_folder, output_folder, n_views, kf_every, conf_thresh
         
 def get_spann3r_ply_url(output_folder):
     # Define the logic to get the PLY file URL for Spann3r
-    ply_path = f'InstantSplat/{output_folder}/images/images_conf0.001.ply'
-    base_url = f'https://{PUBLIC_IPADDR}:{VAST_TCP_PORT_8080}'
-    return f'{base_url}/files/workspace/{ply_path}'
+    ply_path = f'{output_folder}/images/images_conf0.001.ply'
+    base_url = f'http://{PUBLIC_IPADDR}:{VAST_TCP_PORT_5000}'
+    return f'{base_url}/files/{ply_path}'
     
 def get_ply_url(video_name, timestamp):
-    ply_path = f'InstantSplat/output/{video_name}_{timestamp}/point_cloud/iteration_200/point_cloud.ply'
-    base_url = f'https://{PUBLIC_IPADDR}:{VAST_TCP_PORT_8080}'
-    return f'{base_url}/files/workspace/{ply_path}'
+    ply_path = f'output/{video_name}_{timestamp}/point_cloud/iteration_200/point_cloud.ply'
+    base_url = f'http://{PUBLIC_IPADDR}:{VAST_TCP_PORT_5000}'
+    return f'{base_url}/files/{ply_path}'
 
 def run_colmap_and_training(image_folder, iterations):
     try:
@@ -227,11 +257,17 @@ def run_colmap_and_training(image_folder, iterations):
 
 def get_2dgs_ply_url(output_folder, iterations):
     # Define the logic to get the PLY file URL for 2DGS
-    ply_path = f'InstantSplat/{output_folder}/point_cloud/iteration_{iterations}/point_cloud.ply'
-    mesh_path = f'InstantSplat/{output_folder}/train/ours_{iterations}/fuse_post.ply'
-    base_url = f'https://{PUBLIC_IPADDR}:{VAST_TCP_PORT_8080}'
-    return f'{base_url}/files/workspace/{ply_path} {base_url}/files/workspace/{mesh_path}'
+    ply_path = f'{output_folder}/point_cloud/iteration_{iterations}/point_cloud.ply'
+    mesh_path = f'{output_folder}/train/ours_{iterations}/fuse_post.ply'
+    base_url = f'http://{PUBLIC_IPADDR}:{VAST_TCP_PORT_5000}'
+    return f'{base_url}/files/{ply_path}'
 
+def get_2dgs_mesh_url(output_folder, iterations):
+    # Define the logic to get the PLY file URL for 2DGS
+    mesh_path = f'{output_folder}/train/ours_{iterations}/fuse_post.ply'
+    base_url = f'http://{PUBLIC_IPADDR}:{VAST_TCP_PORT_5000}'
+    return f'{base_url}/files/{mesh_path}'
+    
 def run_flask_server():
     app.run(debug=False, host='0.0.0.0', port=5000) #Specify host for cloudflared
 
